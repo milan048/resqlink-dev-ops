@@ -1,287 +1,455 @@
+```groovy
 pipeline {
+
     agent any
 
     environment {
-        MINIKUBE_HOME = "${env.USERPROFILE}\\.minikube"
-        KUBECONFIG = "${env.USERPROFILE}\\.kube\\config"
+        // Actual paths from your Windows installation
+        DOCKER = 'C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe'
+        KUBECTL = 'C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe'
+        MINIKUBE = 'C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe'
 
-        // Change these image names only if your Kubernetes YAML uses different names
-        FRONTEND_IMAGE = "resqlink-frontend:latest"
-        INCIDENT_IMAGE = "resqlink-incident-service:latest"
-
-        MINIKUBE = "C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe"
-        KUBECTL = "C:\\Program Files\\Kubernetes\\Minikube\\kubectl.exe"
+        // ResQLink services
+        INCIDENT_IMAGE = 'resqlink-incident-service:latest'
+        RESOURCE_IMAGE = 'resqlink-resource-service:latest'
     }
 
     stages {
 
         stage('Checkout') {
             steps {
-                echo 'Checking out ResQLink source code...'
+                echo '========================================'
+                echo 'Checking out ResQLink source code'
+                echo '========================================'
 
                 checkout scm
             }
         }
 
+
+        stage('Check Project Structure') {
+            steps {
+                bat '''
+                    echo ========================================
+                    echo PROJECT STRUCTURE
+                    echo ========================================
+
+                    echo.
+                    echo ===== ROOT DIRECTORY =====
+                    dir /b
+
+                    echo.
+                    echo ===== INCIDENT SERVICE =====
+                    if exist "incident-service" (
+                        echo incident-service FOUND
+                        dir /b "incident-service"
+                    ) else (
+                        echo ERROR: incident-service NOT FOUND
+                        exit /b 1
+                    )
+
+                    echo.
+                    echo ===== RESOURCE SERVICE =====
+                    if exist "resource-serivice" (
+                        echo resource-serivice FOUND
+                        dir /b "resource-serivice"
+                    ) else (
+                        echo ERROR: resource-serivice NOT FOUND
+                        exit /b 1
+                    )
+
+                    echo.
+                    echo ===== DOCKERFILES =====
+                    dir /s /b Dockerfile 2>nul
+
+                    echo.
+                    echo ===== KUBERNETES FILES =====
+                    if exist "k8s" (
+                        dir /s /b "k8s"
+                    ) else (
+                        echo WARNING: k8s directory not found at root
+                    )
+                '''
+            }
+        }
+
+
         stage('Check Docker') {
             steps {
                 bat '''
                     echo ========================================
-                    echo Checking Docker
+                    echo CHECKING DOCKER
                     echo ========================================
 
-                    docker version
-                    docker info
+                    echo.
+                    echo Docker executable:
+                    "%DOCKER%" --version
+
+                    echo.
+                    echo Docker information:
+                    "%DOCKER%" info
                 '''
             }
         }
+
 
         stage('Check Minikube') {
             steps {
                 bat '''
                     echo ========================================
-                    echo Checking Minikube
+                    echo CHECKING MINIKUBE
                     echo ========================================
 
-                    "%MINIKUBE%" status
+                    echo.
+                    echo Minikube version:
+                    "%MINIKUBE%" version
 
                     echo.
-                    echo Checking Kubernetes nodes...
-                    "%KUBECTL%" get nodes
+                    echo Minikube status:
+                    "%MINIKUBE%" status
                 '''
             }
         }
+
 
         stage('Ensure Minikube Running') {
             steps {
                 bat '''
                     echo ========================================
-                    echo Ensuring Minikube is running
+                    echo ENSURING MINIKUBE IS RUNNING
                     echo ========================================
 
                     "%MINIKUBE%" status
 
                     if errorlevel 1 (
+                        echo.
                         echo Minikube is not running.
                         echo Starting Minikube with Docker driver...
 
                         "%MINIKUBE%" start --driver=docker
 
                         if errorlevel 1 (
-                            echo ERROR: Minikube failed to start.
+                            echo ERROR: Failed to start Minikube
                             exit /b 1
                         )
                     ) else (
+                        echo.
                         echo Minikube is already running.
                     )
 
                     echo.
-                    echo Final Minikube status:
+                    echo ===== FINAL MINIKUBE STATUS =====
                     "%MINIKUBE%" status
-
-                    echo.
-                    echo Kubernetes nodes:
-                    "%KUBECTL%" get nodes
                 '''
             }
         }
 
-        stage('Build Docker Images') {
+
+        stage('Check Kubernetes Connection') {
             steps {
                 bat '''
                     echo ========================================
-                    echo Building Docker Images
+                    echo CHECKING KUBERNETES CONNECTION
                     echo ========================================
 
-                    echo Current directory:
-                    cd
+                    echo.
+                    echo ===== KUBECTL VERSION =====
+                    "%KUBECTL%" version --client
 
                     echo.
-                    echo Directory contents:
-                    dir
+                    echo ===== KUBERNETES NODES =====
+                    "%KUBECTL%" get nodes
 
-                    echo.
-                    echo Building ResQLink Docker images...
-
-                    if exist frontend\\Dockerfile (
-                        echo Building frontend image...
-                        docker build -t %FRONTEND_IMAGE% frontend
-                    )
-
-                    if exist incident-service\\Dockerfile (
-                        echo Building incident-service image...
-                        docker build -t %INCIDENT_IMAGE% incident-service
-                    )
-
-                    if exist Dockerfile (
-                        echo Root Dockerfile found.
-                        docker build -t resqlink:latest .
+                    if errorlevel 1 (
+                        echo ERROR: kubectl cannot connect to Kubernetes
+                        exit /b 1
                     )
 
                     echo.
-                    echo Docker images:
-                    docker images
+                    echo ===== ALL PODS =====
+                    "%KUBECTL%" get pods -A
                 '''
             }
         }
+
+
+        stage('Build Incident Service') {
+            steps {
+                bat '''
+                    echo ========================================
+                    echo BUILDING INCIDENT SERVICE
+                    echo ========================================
+
+                    if not exist "incident-service\\Dockerfile" (
+                        echo ERROR: incident-service\\Dockerfile not found
+                        exit /b 1
+                    )
+
+                    "%DOCKER%" build ^
+                        -t %INCIDENT_IMAGE% ^
+                        incident-service
+
+                    if errorlevel 1 (
+                        echo ERROR: Incident Service Docker build failed
+                        exit /b 1
+                    )
+
+                    echo.
+                    echo Incident Service image built successfully.
+                '''
+            }
+        }
+
+
+        stage('Build Resource Service') {
+            steps {
+                bat '''
+                    echo ========================================
+                    echo BUILDING RESOURCE SERVICE
+                    echo ========================================
+
+                    if not exist "resource-serivice\\Dockerfile" (
+                        echo ERROR: resource-serivice\\Dockerfile not found
+                        exit /b 1
+                    )
+
+                    "%DOCKER%" build ^
+                        -t %RESOURCE_IMAGE% ^
+                        resource-serivice
+
+                    if errorlevel 1 (
+                        echo ERROR: Resource Service Docker build failed
+                        exit /b 1
+                    )
+
+                    echo.
+                    echo Resource Service image built successfully.
+                '''
+            }
+        }
+
+
+        stage('Show Docker Images') {
+            steps {
+                bat '''
+                    echo ========================================
+                    echo DOCKER IMAGES
+                    echo ========================================
+
+                    "%DOCKER%" images
+                '''
+            }
+        }
+
 
         stage('Load Images into Minikube') {
             steps {
                 bat '''
                     echo ========================================
-                    echo Loading Docker Images into Minikube
+                    echo LOADING IMAGES INTO MINIKUBE
                     echo ========================================
 
-                    "%MINIKUBE%" image load %FRONTEND_IMAGE%
-
-                    if errorlevel 1 (
-                        echo WARNING: Could not load frontend image.
-                    )
-
+                    echo.
+                    echo Loading Incident Service...
                     "%MINIKUBE%" image load %INCIDENT_IMAGE%
 
                     if errorlevel 1 (
-                        echo WARNING: Could not load incident-service image.
+                        echo ERROR: Failed to load Incident Service image
+                        exit /b 1
                     )
 
                     echo.
-                    echo Images available in Minikube:
+                    echo Loading Resource Service...
+                    "%MINIKUBE%" image load %RESOURCE_IMAGE%
+
+                    if errorlevel 1 (
+                        echo ERROR: Failed to load Resource Service image
+                        exit /b 1
+                    )
+
+                    echo.
+                    echo ===== MINIKUBE IMAGES =====
                     "%MINIKUBE%" image ls
                 '''
             }
         }
 
+
         stage('Check Kubernetes Files') {
             steps {
                 bat '''
                     echo ========================================
-                    echo Checking Kubernetes Files
+                    echo CHECKING KUBERNETES FILES
                     echo ========================================
 
-                    dir /s /b *.yaml
-                    dir /s /b *.yml
+                    if not exist "k8s" (
+                        echo ERROR: k8s directory not found
+                        exit /b 1
+                    )
+
+                    echo.
+                    echo ===== K8S FILES =====
+                    dir /s /b "k8s\\*.yaml"
+                    dir /s /b "k8s\\*.yml"
+
+                    echo.
+                    echo Kubernetes files found.
                 '''
             }
         }
+
 
         stage('Deploy to Kubernetes') {
             steps {
                 bat '''
                     echo ========================================
-                    echo Deploying ResQLink to Kubernetes
+                    echo DEPLOYING RESQLINK TO KUBERNETES
                     echo ========================================
 
-                    echo Applying Kubernetes manifests...
+                    "%KUBECTL%" apply -f k8s\\
 
-                    if exist k8s (
-                        "%KUBECTL%" apply -f k8s
-                    ) else if exist kubernetes (
-                        "%KUBECTL%" apply -f kubernetes
-                    ) else if exist k8s.yaml (
-                        "%KUBECTL%" apply -f k8s.yaml
-                    ) else if exist deployment.yaml (
-                        "%KUBECTL%" apply -f deployment.yaml
-                    ) else (
-                        echo ERROR: Kubernetes manifest directory/file not found.
-                        echo Please check your repository structure.
+                    if errorlevel 1 (
+                        echo ERROR: Kubernetes deployment failed
                         exit /b 1
                     )
 
                     echo.
-                    echo Kubernetes resources:
-                    "%KUBECTL%" get all
+                    echo Kubernetes resources applied successfully.
                 '''
             }
         }
+
 
         stage('Wait for Deployment') {
             steps {
                 bat '''
                     echo ========================================
-                    echo Waiting for Kubernetes Pods
+                    echo WAITING FOR KUBERNETES
                     echo ========================================
 
-                    timeout /t 10 /nobreak
+                    timeout /t 20 /nobreak
 
                     echo.
-                    echo Pods:
+                    echo ===== PODS =====
                     "%KUBECTL%" get pods -o wide
 
                     echo.
-                    echo Services:
-                    "%KUBECTL%" get services
+                    echo ===== SERVICES =====
+                    "%KUBECTL%" get svc
 
                     echo.
-                    echo Deployments:
+                    echo ===== DEPLOYMENTS =====
                     "%KUBECTL%" get deployments
                 '''
             }
         }
+
 
         stage('Check Kubernetes') {
             steps {
                 bat '''
                     echo ========================================
-                    echo Kubernetes Health Check
+                    echo KUBERNETES STATUS
                     echo ========================================
 
-                    echo Nodes:
+                    echo.
+                    echo ===== NODES =====
                     "%KUBECTL%" get nodes
 
                     echo.
-                    echo All Pods:
-                    "%KUBECTL%" get pods -A
+                    echo ===== ALL PODS =====
+                    "%KUBECTL%" get pods -A -o wide
 
                     echo.
-                    echo Services:
-                    "%KUBECTL%" get svc
+                    echo ===== SERVICES =====
+                    "%KUBECTL%" get svc -A
 
                     echo.
-                    echo Deployments:
-                    "%KUBECTL%" get deployments
+                    echo ===== DEPLOYMENTS =====
+                    "%KUBECTL%" get deployments -A
+
+                    echo.
+                    echo ===== REPLICASETS =====
+                    "%KUBECTL%" get rs -A
                 '''
             }
         }
+
 
         stage('Check Deployment') {
             steps {
                 bat '''
                     echo ========================================
-                    echo Checking Deployment Status
+                    echo RESQLINK DEPLOYMENT CHECK
                     echo ========================================
 
-                    "%KUBECTL%" get deployments
-
-                    "%KUBECTL%" get pods
+                    echo.
+                    echo ===== INCIDENT SERVICE PODS =====
+                    "%KUBECTL%" get pods -l app=incident-service
 
                     echo.
-                    echo Kubernetes events:
-                    "%KUBECTL%" get events --sort-by=.lastTimestamp
+                    echo ===== RESOURCE SERVICE PODS =====
+                    "%KUBECTL%" get pods -l app=resource-service
+
+                    echo.
+                    echo ===== SERVICES =====
+                    "%KUBECTL%" get svc
+
+                    echo.
+                    echo ===== MINIKUBE STATUS =====
+                    "%MINIKUBE%" status
+
+                    echo.
+                    echo ========================================
+                    echo RESQLINK DEPLOYMENT CHECK COMPLETED
+                    echo ========================================
                 '''
             }
         }
     }
+
 
     post {
 
         success {
             echo '''
             ================================================
-                     RESQLINK PIPELINE SUCCESS
+                  RESQLINK PIPELINE SUCCESS
             ================================================
-            Kubernetes deployment completed successfully.
+
+            Checkout              : SUCCESS
+            Docker                : SUCCESS
+            Minikube              : SUCCESS
+            Kubernetes            : SUCCESS
+            Incident Service      : BUILT
+            Resource Service      : BUILT
+            Images                : LOADED
+            Deployment            : APPLIED
+
+            ================================================
             '''
         }
+
 
         failure {
             echo '''
             ================================================
-                     RESQLINK PIPELINE FAILED
+                  RESQLINK PIPELINE FAILED
             ================================================
-            Collecting Kubernetes diagnostics...
+
+            Collecting diagnostics...
+            ================================================
             '''
 
             bat '''
+                echo.
+                echo ===== DOCKER VERSION =====
+                "%DOCKER%" --version
+
+                echo.
+                echo ===== DOCKER INFO =====
+                "%DOCKER%" info
+
                 echo.
                 echo ===== MINIKUBE STATUS =====
                 "%MINIKUBE%" status
@@ -292,7 +460,7 @@ pipeline {
 
                 echo.
                 echo ===== ALL PODS =====
-                "%KUBECTL%" get pods -A
+                "%KUBECTL%" get pods -A -o wide
 
                 echo.
                 echo ===== SERVICES =====
@@ -303,13 +471,19 @@ pipeline {
                 "%KUBECTL%" get deployments -A
 
                 echo.
+                echo ===== POD DESCRIPTIONS =====
+                "%KUBECTL%" describe pods -A
+
+                echo.
                 echo ===== EVENTS =====
                 "%KUBECTL%" get events -A --sort-by=.lastTimestamp
             '''
         }
+
 
         always {
             echo 'Pipeline execution completed.'
         }
     }
 }
+```
