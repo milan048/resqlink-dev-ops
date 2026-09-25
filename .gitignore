@@ -1,0 +1,27 @@
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.log
+
+# Python test/cache
+.pytest_cache/
+.mypy_cache/
+
+k8s/secret.yaml

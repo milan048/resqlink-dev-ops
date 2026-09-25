@@ -1,0 +1,36 @@
+services:
+
+  incident-service:
+    build:
+      context: .
+      dockerfile: incident-service/Dockerfile
+    container_name: resqlink-incident
+    ports:
+      - "8000:8000"
+    environment:
+      MONGODB_URL: ${MONGODB_URL}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      RESOURCE_SERVICE_URL: http://resource-service:8001
+      FRONTEND_URL: http://localhost:3000
+    depends_on:
+      - resource-service
+
+  resource-service:
+    build:
+      context: .
+      dockerfile: resource-serivice/Dockerfile
+    container_name: resqlink-resource
+    ports:
+      - "8001:8001"
+    environment:
+      MONGODB_URL: ${MONGODB_URL}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      FRONTEND_URL: http://localhost:3000
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: resqlink-frontend
+    ports:
+      - "3000:80"
