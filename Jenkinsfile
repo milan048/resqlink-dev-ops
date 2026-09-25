@@ -38,13 +38,13 @@ pipeline {
 
         stage('Deploy to Kubernetes') {
             steps {
-                bat 'kubectl apply -f k8s/secret.yaml'
-                bat 'kubectl apply -f k8s/incident-deployment.yaml'
-                bat 'kubectl apply -f k8s/incident-service.yaml'
-                bat 'kubectl apply -f k8s/resource-deployment.yaml'
-                bat 'kubectl apply -f k8s/resource-service.yaml'
-                bat 'kubectl apply -f k8s/frontend-deployment.yaml'
-                bat 'kubectl apply -f k8s/frontend-service.yaml'
+                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" apply -f k8s/secret.yaml'
+                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" apply -f k8s/incident-deployment.yaml'
+                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" apply -f k8s/incident-service.yaml'
+                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" apply -f k8s/resource-deployment.yaml'
+                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" apply -f k8s/resource-service.yaml'
+                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" apply -f k8s/frontend-deployment.yaml'
+                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" apply -f k8s/frontend-service.yaml'
             }
         }
 
