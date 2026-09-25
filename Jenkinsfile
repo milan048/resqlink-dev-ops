@@ -1,5 +1,14 @@
 pipeline {
+
     agent any
+
+    environment {
+        DOCKER = 'C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe'
+        KUBECTL = 'C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe'
+        MINIKUBE = 'C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe'
+
+        KUBECONFIG = 'C:\\ProgramData\\Jenkins\\.kube\\config'
+    }
 
     stages {
 
@@ -9,68 +18,110 @@ pipeline {
             }
         }
 
+        stage('Docker Version') {
+            steps {
+                bat '"%DOCKER%" --version'
+            }
+        }
+
         stage('Build Docker Images') {
             steps {
-                 bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker-compose.exe" build'
+                bat '"%DOCKER%" compose build'
             }
         }
 
         stage('Verify Docker Images') {
             steps {
-                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" images'
+                bat '"%DOCKER%" images'
             }
         }
 
-        stage('Start Minikube') {
-            steps {
-                withEnv(['PATH+DOCKER=C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin']) {
-                  bat 'docker --version'
-                  bat '"C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe" start --driver=docker'
-                }
-            }
-        }
-           
         stage('Check Minikube') {
             steps {
-               withEnv(['PATH+DOCKER=C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin']) {
-                  bat '"C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe" status'
-                }
-            }
-        }
-
-        stage('Load Images into Minikube') {
-            steps {
-                bat '"C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe" image load resqlink-main-incident-service:latest'
-                bat '"C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe" image load resqlink-main-resource-service:latest'
-                bat '"C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe" image load resqlink-main-frontend:latest'
+                bat '"%MINIKUBE%" status'
             }
         }
 
         stage('Check Kubernetes') {
             steps {
-                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" version --client'
-                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" config current-context'
-                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" get nodes'
+                bat '"%KUBECTL%" config current-context'
+                bat '"%KUBECTL%" get nodes'
+            }
+        }
+
+        stage('Load Images into Minikube') {
+            steps {
+                bat '"%MINIKUBE%" image load resqlink-main-incident-service:latest'
+                bat '"%MINIKUBE%" image load resqlink-main-resource-service:latest'
+                bat '"%MINIKUBE%" image load resqlink-main-frontend:latest'
+            }
+        }
+
+        stage('Verify Images in Minikube') {
+            steps {
+                bat '"%MINIKUBE%" image ls'
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
-                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" apply -f k8s/secret.yaml'
-                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" apply -f k8s/incident-deployment.yaml'
-                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" apply -f k8s/incident-service.yaml'
-                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" apply -f k8s/resource-deployment.yaml'
-                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" apply -f k8s/resource-service.yaml'
-                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" apply -f k8s/frontend-deployment.yaml'
-                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" apply -f k8s/frontend-service.yaml'
+
+                bat '"%KUBECTL%" apply -f k8s/secret.yaml'
+
+                bat '"%KUBECTL%" apply -f k8s/incident-deployment.yaml'
+                bat '"%KUBECTL%" apply -f k8s/incident-service.yaml'
+
+                bat '"%KUBECTL%" apply -f k8s/resource-deployment.yaml'
+                bat '"%KUBECTL%" apply -f k8s/resource-service.yaml'
+
+                bat '"%KUBECTL%" apply -f k8s/frontend-deployment.yaml'
+                bat '"%KUBECTL%" apply -f k8s/frontend-service.yaml'
             }
         }
 
         stage('Check Deployment') {
             steps {
-                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" get pods'
-                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" get services'
+
+                bat '"%KUBECTL%" get pods'
+
+                bat '"%KUBECTL%" get services'
+
+                bat '"%KUBECTL%" get deployments'
             }
+        }
+
+        stage('Deployment Status') {
+            steps {
+
+                bat '"%KUBECTL%" rollout status deployment/incident-service --timeout=180s'
+
+                bat '"%KUBECTL%" rollout status deployment/resource-service --timeout=180s'
+
+                bat '"%KUBECTL%" rollout status deployment/frontend --timeout=180s'
+            }
+        }
+    }
+
+    post {
+
+        success {
+            echo '========================================'
+            echo 'ResQLink DevOps Pipeline Successful!'
+            echo 'Docker images built successfully.'
+            echo 'Images loaded into Minikube.'
+            echo 'Kubernetes deployment completed.'
+            echo '========================================'
+        }
+
+        failure {
+            echo '========================================'
+            echo 'ResQLink DevOps Pipeline Failed.'
+            echo 'Check the stage above for the exact error.'
+            echo '========================================'
+        }
+
+        always {
+            echo 'Pipeline execution completed.'
         }
     }
 }
