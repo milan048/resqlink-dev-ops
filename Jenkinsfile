@@ -23,13 +23,18 @@ pipeline {
 
         stage('Start Minikube') {
             steps {
-                bat '"C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe" start --driver=docker'
+                withEnv(['PATH+DOCKER=C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin']) {
+                  bat 'docker --version'
+                  bat '"C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe" start --driver=docker'
+                }
             }
         }
-
+           
         stage('Check Minikube') {
             steps {
-                bat '"C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe" status'
+               withEnv(['PATH+DOCKER=C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin']) {
+                  bat '"C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe" status'
+                }
             }
         }
 
