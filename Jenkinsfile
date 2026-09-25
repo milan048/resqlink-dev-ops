@@ -21,11 +21,18 @@ pipeline {
             }
         }
 
+        stage('Check Minikube') {
+            steps {
+                bat '"C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe" version'
+                bat '"C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe" status'
+           }
+        }
+
         stage('Load Images into Minikube') {
             steps {
-                bat 'minikube image load resqlink-main-incident-service:latest'
-                bat 'minikube image load resqlink-main-resource-service:latest'
-                bat 'minikube image load resqlink-main-frontend:latest'
+                bat '"C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe" image load resqlink-main-incident-service:latest'
+                bat '"C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe" image load resqlink-main-resource-service:latest'
+                bat '"C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe" image load resqlink-main-frontend:latest'
             }
         }
 
