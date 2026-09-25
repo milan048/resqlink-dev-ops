@@ -3,8 +3,14 @@ pipeline {
 
     environment {
         DOCKER = 'C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe'
-        KUBECTL = 'C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe'
         MINIKUBE = 'C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe'
+
+        PATH+DOCKER = 'C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin'
+        PATH+MINIKUBE = 'C:\\Program Files\\Kubernetes\\Minikube'
+
+        INCIDENT_IMAGE = 'resqlink-main-incident-service:latest'
+        RESOURCE_IMAGE = 'resqlink-main-resource-service:latest'
+        FRONTEND_IMAGE = 'resqlink-main-frontend:latest'
     }
 
     stages {
@@ -29,12 +35,26 @@ pipeline {
             steps {
                 bat '''
                     echo =========================
-                    echo Starting Minikube
+                    echo Starting / Checking Minikube
                     echo =========================
 
-                    "%MINIKUBE%" start -p minikube
+                    "%MINIKUBE%" start -p minikube --driver=docker
 
-                    "%KUBECTL%" config use-context minikube
+                    if errorlevel 1 (
+                        echo ERROR: Minikube could not start.
+                        exit /b 1
+                    )
+
+                    echo =========================
+                    echo Kubernetes Nodes
+                    echo =========================
+
+                    "%MINIKUBE%" kubectl -- get nodes
+
+                    if errorlevel 1 (
+                        echo ERROR: Kubernetes is not reachable.
+                        exit /b 1
+                    )
                 '''
             }
         }
@@ -47,18 +67,22 @@ pipeline {
                     echo =========================
 
                     "%DOCKER%" build ^
-                    -t resqlink-main-incident-service:latest ^
+                    -t "%INCIDENT_IMAGE%" ^
                     -f incident-service/Dockerfile ^
                     .
+
+                    if errorlevel 1 exit /b 1
 
                     echo =========================
                     echo Building Resource Service
                     echo =========================
 
                     "%DOCKER%" build ^
-                    -t resqlink-main-resource-service:latest ^
+                    -t "%RESOURCE_IMAGE%" ^
                     -f resource-serivice/Dockerfile ^
                     .
+
+                    if errorlevel 1 exit /b 1
                 '''
             }
         }
@@ -70,44 +94,64 @@ pipeline {
                     echo Loading Images into Minikube
                     echo =========================
 
-                    "%MINIKUBE%" image load resqlink-main-incident-service:latest
-                    "%MINIKUBE%" image load resqlink-main-resource-service:latest
+                    "%MINIKUBE%" image load "%INCIDENT_IMAGE%"
+
+                    if errorlevel 1 exit /b 1
+
+                    "%MINIKUBE%" image load "%RESOURCE_IMAGE%"
+
+                    if errorlevel 1 exit /b 1
+                '''
+            }
+        }
+
+        stage('Check Kubernetes Secret') {
+            steps {
+                bat '''
+                    echo =========================
+                    echo Checking Kubernetes Secret
+                    echo =========================
+
+                    "%MINIKUBE%" kubectl -- get secret resqlink-secret
+
+                    if errorlevel 1 (
+                        echo.
+                        echo ERROR: resqlink-secret was not found.
+                        echo Check the secret in the Minikube cluster.
+                        exit /b 1
+                    )
                 '''
             }
         }
 
         stage('Deploy Backend') {
             steps {
-
                 bat '''
                     echo =========================
-                    echo Checking Kubernetes Secret
+                    echo Deploying Backend
                     echo =========================
 
-                    "%KUBECTL%" get secret resqlink-secret
+                    "%MINIKUBE%" kubectl -- apply -f k8s/incident-service.yaml
+                    if errorlevel 1 exit /b 1
 
-                    if errorlevel 1 (
-                        echo.
-                        echo ERROR: resqlink-secret is missing.
-                        echo Create resqlink-secret in Minikube before running Jenkins.
-                        exit /b 1
-                    )
+                    "%MINIKUBE%" kubectl -- apply -f k8s/incident-deployment.yaml
+                    if errorlevel 1 exit /b 1
 
-                    echo =========================
-                    echo Deploying Backend Services
-                    echo =========================
+                    "%MINIKUBE%" kubectl -- apply -f k8s/resource-service.yaml
+                    if errorlevel 1 exit /b 1
 
-                    "%KUBECTL%" apply -f k8s/incident-service.yaml
-                    "%KUBECTL%" apply -f k8s/incident-deployment.yaml
-
-                    "%KUBECTL%" apply -f k8s/resource-service.yaml
-                    "%KUBECTL%" apply -f k8s/resource-deployment.yaml
+                    "%MINIKUBE%" kubectl -- apply -f k8s/resource-deployment.yaml
+                    if errorlevel 1 exit /b 1
                 '''
+            }
+        }
 
+        stage('Expose Backend') {
+            steps {
                 powershell '''
                     Write-Host "Exposing Incident Service..."
 
-                    & $env:KUBECTL patch service incident-service `
+                    & $env:MINIKUBE kubectl -- patch service incident-service `
                         --type merge `
                         -p '{"spec":{"type":"NodePort","ports":[{"port":8000,"targetPort":8000,"nodePort":30080}]}}'
 
@@ -117,7 +161,7 @@ pipeline {
 
                     Write-Host "Exposing Resource Service..."
 
-                    & $env:KUBECTL patch service resource-service `
+                    & $env:MINIKUBE kubectl -- patch service resource-service `
                         --type merge `
                         -p '{"spec":{"type":"NodePort","ports":[{"port":8001,"targetPort":8001,"nodePort":30081}]}}'
 
@@ -137,7 +181,7 @@ pipeline {
             }
         }
 
-        stage('Build Frontend') {
+        stage('Build Frontend Image') {
             steps {
                 bat '''
                     echo =========================
@@ -147,34 +191,50 @@ pipeline {
                     "%DOCKER%" build ^
                     --build-arg VITE_INCIDENT_SERVICE_URL=http://%MINIKUBE_IP%:30080 ^
                     --build-arg VITE_RESOURCE_SERVICE_URL=http://%MINIKUBE_IP%:30081 ^
-                    -t resqlink-main-frontend:latest ^
+                    -t "%FRONTEND_IMAGE%" ^
                     ./frontend
+
+                    if errorlevel 1 exit /b 1
+                '''
+            }
+        }
+
+        stage('Load Frontend Image') {
+            steps {
+                bat '''
+                    echo =========================
+                    echo Loading Frontend Image
+                    echo =========================
+
+                    "%MINIKUBE%" image load "%FRONTEND_IMAGE%"
+
+                    if errorlevel 1 exit /b 1
                 '''
             }
         }
 
         stage('Deploy Frontend') {
             steps {
-
                 bat '''
-                    echo =========================
-                    echo Loading Frontend Image
-                    echo =========================
-
-                    "%MINIKUBE%" image load resqlink-main-frontend:latest
-
                     echo =========================
                     echo Deploying Frontend
                     echo =========================
 
-                    "%KUBECTL%" apply -f k8s/frontend-service.yaml
-                    "%KUBECTL%" apply -f k8s/frontend-deployment.yaml
+                    "%MINIKUBE%" kubectl -- apply -f k8s/frontend-service.yaml
+                    if errorlevel 1 exit /b 1
+
+                    "%MINIKUBE%" kubectl -- apply -f k8s/frontend-deployment.yaml
+                    if errorlevel 1 exit /b 1
                 '''
+            }
+        }
 
+        stage('Expose Frontend') {
+            steps {
                 powershell '''
-                    Write-Host "Setting Frontend NodePort..."
+                    Write-Host "Exposing Frontend..."
 
-                    & $env:KUBECTL patch service frontend-service `
+                    & $env:MINIKUBE kubectl -- patch service frontend-service `
                         --type merge `
                         -p '{"spec":{"type":"NodePort","ports":[{"port":80,"targetPort":80,"nodePort":30082}]}}'
 
@@ -182,14 +242,23 @@ pipeline {
                         throw "Failed to expose frontend-service"
                     }
                 '''
+            }
+        }
 
+        stage('Configure CORS') {
+            steps {
                 bat '''
                     echo =========================
-                    echo Updating Backend CORS URL
+                    echo Configuring Backend CORS
                     echo =========================
 
-                    "%KUBECTL%" set env deployment/incident-service FRONTEND_URL=http://%MINIKUBE_IP%:30082
-                    "%KUBECTL%" set env deployment/resource-service FRONTEND_URL=http://%MINIKUBE_IP%:30082
+                    "%MINIKUBE%" kubectl -- set env deployment/incident-service FRONTEND_URL=http://%MINIKUBE_IP%:30082
+
+                    if errorlevel 1 exit /b 1
+
+                    "%MINIKUBE%" kubectl -- set env deployment/resource-service FRONTEND_URL=http://%MINIKUBE_IP%:30082
+
+                    if errorlevel 1 exit /b 1
                 '''
             }
         }
@@ -201,9 +270,14 @@ pipeline {
                     echo Waiting for Deployments
                     echo =========================
 
-                    "%KUBECTL%" rollout status deployment/incident-service --timeout=180s
-                    "%KUBECTL%" rollout status deployment/resource-service --timeout=180s
-                    "%KUBECTL%" rollout status deployment/frontend --timeout=180s
+                    "%MINIKUBE%" kubectl -- rollout status deployment/incident-service --timeout=180s
+                    if errorlevel 1 exit /b 1
+
+                    "%MINIKUBE%" kubectl -- rollout status deployment/resource-service --timeout=180s
+                    if errorlevel 1 exit /b 1
+
+                    "%MINIKUBE%" kubectl -- rollout status deployment/frontend --timeout=180s
+                    if errorlevel 1 exit /b 1
                 '''
             }
         }
@@ -212,45 +286,32 @@ pipeline {
             steps {
                 bat '''
                     echo =========================
-                    echo Kubernetes Pods
+                    echo PODS
                     echo =========================
 
-                    "%KUBECTL%" get pods
+                    "%MINIKUBE%" kubectl -- get pods
 
                     echo =========================
-                    echo Kubernetes Services
+                    echo SERVICES
                     echo =========================
 
-                    "%KUBECTL%" get services
+                    "%MINIKUBE%" kubectl -- get services
 
                     echo =========================
-                    echo Kubernetes Deployments
+                    echo DEPLOYMENTS
                     echo =========================
 
-                    "%KUBECTL%" get deployments
+                    "%MINIKUBE%" kubectl -- get deployments
                 '''
 
                 powershell '''
-                    $incidentUrl = "http://$env:MINIKUBE_IP`:30080/docs"
-                    $resourceUrl = "http://$env:MINIKUBE_IP`:30081/docs"
-                    $frontendUrl = "http://$env:MINIKUBE_IP`:30082"
-
-                    Write-Host "Checking Incident Service..."
-                    Invoke-WebRequest $incidentUrl -UseBasicParsing -TimeoutSec 30 | Out-Null
-
-                    Write-Host "Checking Resource Service..."
-                    Invoke-WebRequest $resourceUrl -UseBasicParsing -TimeoutSec 30 | Out-Null
-
-                    Write-Host "Checking Frontend..."
-                    Invoke-WebRequest $frontendUrl -UseBasicParsing -TimeoutSec 30 | Out-Null
-
                     Write-Host ""
                     Write-Host "======================================"
-                    Write-Host " ResQLink Deployment Successful"
+                    Write-Host "     ResQLink Deployment Complete"
                     Write-Host "======================================"
                     Write-Host "Frontend : http://$env:MINIKUBE_IP`:30082"
-                    Write-Host "Incident : http://$env:MINIKUBE_IP`:30080/docs"
-                    Write-Host "Resource : http://$env:MINIKUBE_IP`:30081/docs"
+                    Write-Host "Incident : http://$env:MINIKUBE_IP`:30080"
+                    Write-Host "Resource : http://$env:MINIKUBE_IP`:30081"
                     Write-Host "======================================"
                 '''
             }
@@ -259,11 +320,11 @@ pipeline {
 
     post {
         success {
-            echo 'ResQLink Jenkins CI/CD Pipeline completed successfully.'
+            echo 'ResQLink CI/CD Pipeline completed successfully.'
         }
 
         failure {
-            echo 'ResQLink Jenkins Pipeline failed. Check the stage where the error occurred.'
+            echo 'ResQLink CI/CD Pipeline failed.'
         }
     }
 }
