@@ -11,13 +11,13 @@ pipeline {
 
         stage('Build Docker Images') {
             steps {
-                bat 'docker compose build'
+                 bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" compose build'
             }
         }
 
         stage('Verify Docker Images') {
             steps {
-                bat 'docker images'
+                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" images'
             }
         }
 
