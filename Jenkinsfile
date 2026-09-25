@@ -2,15 +2,15 @@ pipeline {
     agent any
 
     environment {
-        DOCKER = 'C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe'
-        MINIKUBE = 'C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe'
+      DOCKER = 'C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe'
+      MINIKUBE = 'C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe'
 
-        PATH+DOCKER = 'C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin'
-        PATH+MINIKUBE = 'C:\\Program Files\\Kubernetes\\Minikube'
+      DOCKER_DIR = 'C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin'
+      MINIKUBE_DIR = 'C:\\Program Files\\Kubernetes\\Minikube'
 
-        INCIDENT_IMAGE = 'resqlink-main-incident-service:latest'
-        RESOURCE_IMAGE = 'resqlink-main-resource-service:latest'
-        FRONTEND_IMAGE = 'resqlink-main-frontend:latest'
+      INCIDENT_IMAGE = 'resqlink-main-incident-service:latest'
+      RESOURCE_IMAGE = 'resqlink-main-resource-service:latest'
+      FRONTEND_IMAGE = 'resqlink-main-frontend:latest'
     }
 
     stages {
@@ -32,31 +32,33 @@ pipeline {
         }
 
         stage('Start Minikube') {
-            steps {
-                bat '''
-                    echo =========================
-                    echo Starting / Checking Minikube
-                    echo =========================
+           steps {
+            bat '''
+            echo =========================
+            echo Starting / Checking Minikube
+            echo =========================
 
-                    "%MINIKUBE%" start -p minikube --driver=docker
+            set "PATH=%DOCKER_DIR%;%MINIKUBE_DIR%;%PATH%"
 
-                    if errorlevel 1 (
-                        echo ERROR: Minikube could not start.
-                        exit /b 1
-                    )
+            "%MINIKUBE%" start -p minikube --driver=docker
 
-                    echo =========================
-                    echo Kubernetes Nodes
-                    echo =========================
+            if errorlevel 1 (
+                echo ERROR: Minikube could not start.
+                exit /b 1
+            )
 
-                    "%MINIKUBE%" kubectl -- get nodes
+            echo =========================
+            echo Kubernetes Nodes
+            echo =========================
 
-                    if errorlevel 1 (
-                        echo ERROR: Kubernetes is not reachable.
-                        exit /b 1
-                    )
-                '''
-            }
+            "%MINIKUBE%" kubectl -- get nodes
+
+            if errorlevel 1 (
+                echo ERROR: Kubernetes is not reachable.
+                exit /b 1
+            )
+          '''
+          }
         }
 
         stage('Build Backend Images') {
