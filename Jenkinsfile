@@ -36,6 +36,14 @@ pipeline {
             }
         }
 
+        stage('Check Kubernetes') {
+            steps {
+                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" version --client'
+                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" config current-context'
+                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" get nodes'
+            }
+        }
+
         stage('Deploy to Kubernetes') {
             steps {
                 bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" apply -f k8s/secret.yaml'
@@ -50,8 +58,8 @@ pipeline {
 
         stage('Check Deployment') {
             steps {
-                bat 'kubectl get pods'
-                bat 'kubectl get services'
+                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" get pods'
+                bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe" get services'
             }
         }
     }
