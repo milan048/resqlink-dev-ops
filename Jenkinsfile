@@ -21,11 +21,16 @@ pipeline {
             }
         }
 
+        stage('Start Minikube') {
+            steps {
+                bat '"C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe" start --driver=docker'
+            }
+        }
+
         stage('Check Minikube') {
             steps {
-                bat '"C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe" version'
                 bat '"C:\\Program Files\\Kubernetes\\Minikube\\minikube.exe" status'
-           }
+            }
         }
 
         stage('Load Images into Minikube') {
