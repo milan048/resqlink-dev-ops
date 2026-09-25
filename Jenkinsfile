@@ -11,7 +11,7 @@ pipeline {
 
         stage('Build Docker Images') {
             steps {
-                 bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" compose build'
+                 bat '"C:\\Users\\Milan Chauhan\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker-compose.exe" build'
             }
         }
 
